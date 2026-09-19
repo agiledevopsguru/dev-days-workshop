@@ -1,7 +1,13 @@
-import { eq, asc } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Database } from './db';
 import { games, categories, publishers } from '../../db/schema';
-import type { Game } from '../types/game';
+import type { Category, Game, Publisher } from '../types/game';
+
+/** Optional criteria used to narrow the game listing. */
+export interface GameFilters {
+    categoryIds?: number[];
+    publisherId?: number;
+}
 
 const gameSelection = {
     id: games.id,
@@ -42,6 +48,8 @@ function mapGame(row: GameSelectionRow): Game {
     };
 }
 
+// Drizzle's fluent query return type is inferred to preserve its filter methods.
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 const baseGamesQuery = (db: Database) =>
     db
         .select(gameSelection)
@@ -49,19 +57,86 @@ const baseGamesQuery = (db: Database) =>
         .leftJoin(categories, eq(games.categoryId, categories.id))
         .leftJoin(publishers, eq(games.publisherId, publishers.id));
 
-/** All games ordered by title. */
-export async function getAllGames(db: Database): Promise<Game[]> {
-    const rows = await baseGamesQuery(db).orderBy(asc(games.title));
+/**
+ * Lists games matching the optional category and publisher filters.
+ *
+ * @param db - Injectable Drizzle database connection used for the query.
+ * @param filters - Optional category and publisher criteria.
+ * @returns Games matching all supplied criteria, ordered by title.
+ */
+export async function getFilteredGames(
+    db: Database,
+    filters: GameFilters = {},
+): Promise<Game[]> {
+    const conditions = [];
+
+    if (filters.categoryIds && filters.categoryIds.length > 0) {
+        conditions.push(inArray(games.categoryId, filters.categoryIds));
+    }
+    if (filters.publisherId !== undefined) {
+        conditions.push(eq(games.publisherId, filters.publisherId));
+    }
+
+    const rows = await baseGamesQuery(db)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(asc(games.title));
     return rows.map(mapGame);
 }
 
-/** All game ids ordered by title. */
+/**
+ * Lists every game ordered by title.
+ *
+ * @param db - Injectable Drizzle database connection used for the query.
+ * @returns All games ordered alphabetically by title.
+ */
+export async function getAllGames(db: Database): Promise<Game[]> {
+    return getFilteredGames(db);
+}
+
+/**
+ * Lists all game IDs ordered by their game title.
+ *
+ * @param db - Injectable Drizzle database connection used for the query.
+ * @returns Game IDs in deterministic title order.
+ */
 export async function getAllGameIds(db: Database): Promise<number[]> {
     const rows = await db.select({ id: games.id }).from(games).orderBy(asc(games.title));
     return rows.map((row) => row.id);
 }
 
-/** A single game by id, or null when it does not exist. */
+/**
+ * Lists all categories in deterministic display order.
+ *
+ * @param db - Injectable Drizzle database connection used for the query.
+ * @returns Categories ordered alphabetically by name.
+ */
+export async function getAllCategories(db: Database): Promise<Category[]> {
+    return db
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .orderBy(asc(categories.name));
+}
+
+/**
+ * Lists all publishers in deterministic display order.
+ *
+ * @param db - Injectable Drizzle database connection used for the query.
+ * @returns Publishers ordered alphabetically by name.
+ */
+export async function getAllPublishers(db: Database): Promise<Publisher[]> {
+    return db
+        .select({ id: publishers.id, name: publishers.name })
+        .from(publishers)
+        .orderBy(asc(publishers.name));
+}
+
+/**
+ * Finds one game by ID.
+ *
+ * @param db - Injectable Drizzle database connection used for the query.
+ * @param id - Game ID to look up.
+ * @returns The matching game, or null when it does not exist.
+ */
 export async function getGameById(db: Database, id: number): Promise<Game | null> {
     const row = await baseGamesQuery(db).where(eq(games.id, id)).get();
     return row ? mapGame(row) : null;

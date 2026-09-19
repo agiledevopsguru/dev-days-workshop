@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { createTestDatabase } from '../../db/test-helpers';
 import { categories, publishers, games } from '../../db/schema';
 import type { Database } from './db';
 import {
     getAllGames,
     getAllGameIds,
+    getAllCategories,
+    getAllPublishers,
+    getFilteredGames,
     getGameById,
 } from './games';
 
@@ -62,5 +66,98 @@ describe('games data-access helpers', () => {
     it('returns null for a non-existent game', async () => {
         await seedGames(db, 2);
         expect(await getGameById(db, 99999)).toBeNull();
+    });
+
+    it('filters games by one or more categories and publisher', async () => {
+        const [strategy] = await db
+            .insert(categories)
+            .values([
+                { name: 'Strategy', description: 'strategy' },
+                { name: 'Puzzle', description: 'puzzle' },
+            ])
+            .returning({ id: categories.id, name: categories.name });
+        const [firstPublisher] = await db
+            .insert(publishers)
+            .values([
+                { name: 'Pub One', description: 'one' },
+                { name: 'Pub Two', description: 'two' },
+            ])
+            .returning({ id: publishers.id, name: publishers.name });
+        const [secondCategory] = await db
+            .select({ id: categories.id })
+            .from(categories)
+            .where(eq(categories.name, 'Puzzle'));
+        const [secondPublisher] = await db
+            .select({ id: publishers.id })
+            .from(publishers)
+            .where(eq(publishers.name, 'Pub Two'));
+
+        await db.insert(games).values([
+            {
+                title: 'Strategy One',
+                description: 'one',
+                starRating: 4,
+                categoryId: strategy.id,
+                publisherId: firstPublisher.id,
+            },
+            {
+                title: 'Puzzle One',
+                description: 'two',
+                starRating: 4,
+                categoryId: secondCategory.id,
+                publisherId: firstPublisher.id,
+            },
+            {
+                title: 'Puzzle Two',
+                description: 'three',
+                starRating: 4,
+                categoryId: secondCategory.id,
+                publisherId: secondPublisher.id,
+            },
+        ]);
+
+        expect(
+            (await getFilteredGames(db, { categoryIds: [strategy.id, secondCategory.id] }))
+                .map((game) => game.title),
+        ).toEqual(['Puzzle One', 'Puzzle Two', 'Strategy One']);
+        expect(
+            (await getFilteredGames(db, { publisherId: firstPublisher.id })).map(
+                (game) => game.title,
+            ),
+        ).toEqual(['Puzzle One', 'Strategy One']);
+        expect(
+            (
+                await getFilteredGames(db, {
+                    categoryIds: [secondCategory.id],
+                    publisherId: secondPublisher.id,
+                })
+            ).map((game) => game.title),
+        ).toEqual(['Puzzle Two']);
+        expect(
+            await getFilteredGames(db, {
+                categoryIds: [strategy.id],
+                publisherId: secondPublisher.id,
+            }),
+        ).toEqual([]);
+    });
+
+    it('returns categories and publishers in alphabetical order', async () => {
+        await db.insert(categories).values([
+            { name: 'Strategy', description: 'strategy' },
+            { name: 'Puzzle', description: 'puzzle' },
+        ]);
+        await db.insert(publishers).values([
+            { name: 'Pub Two', description: 'two' },
+            { name: 'Pub One', description: 'one' },
+        ]);
+
+        expect((await getAllCategories(db)).map((item) => item.name)).toEqual([
+            'Puzzle',
+            'Strategy',
+        ]);
+        expect((await getAllPublishers(db)).map((item) => item.name)).toEqual([
+            'Pub One',
+            'Pub Two',
+        ]);
     });
 });
