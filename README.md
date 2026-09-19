@@ -42,6 +42,8 @@ npm run build      # prebuild migrates + seeds, then builds the static site
 npm run preview
 ```
 
+The home page includes bookmarkable filters for one or more categories and a publisher. Filters can be combined, and the listing updates without leaving the page.
+
 ## Database
 
 The SQLite database is built from `db/games.csv` — there is no live data to migrate.

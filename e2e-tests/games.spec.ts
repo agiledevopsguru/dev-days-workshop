@@ -24,6 +24,46 @@ test.describe('Game Listing and Navigation', () => {
     });
   });
 
+  test('should filter games by category and publisher together', async ({ page }) => {
+    await page.goto('/');
+    const gamesGrid = page.getByTestId('games-grid');
+    await expect(gamesGrid).toBeVisible();
+
+    const firstCard = page.getByTestId('game-card').first();
+    const categoryId = await firstCard.getAttribute('data-category-id');
+    const publisherId = await firstCard.getAttribute('data-publisher-id');
+    const categoryFilter = page.locator(
+      `[data-testid^="category-filter-"][value="${categoryId}"]`,
+    );
+
+    await test.step('Select a category and publisher', async () => {
+      await categoryFilter.check();
+      await page.getByTestId('publisher-filter').selectOption(publisherId ?? '');
+    });
+
+    await test.step('Verify the combined filter keeps matching games visible', async () => {
+      await expect(firstCard).toBeVisible();
+      await expect(page).toHaveURL(
+        new RegExp(`[?&]category=${categoryId}.*[?&]publisher=${publisherId}`),
+      );
+      await expect(page.getByTestId('games-result-count')).toContainText('Showing');
+    });
+
+    await test.step('Clear filters and restore the full listing', async () => {
+      await page.getByTestId('clear-filters').click();
+      await expect(firstCard).toBeVisible();
+      await expect(page).toHaveURL('/');
+    });
+  });
+
+  test('should show an accessible empty state when filters match no games', async ({ page }) => {
+    await page.goto('/?category=999999');
+
+    await expect(page.getByTestId('filtered-empty-state')).toBeVisible();
+    await expect(page.getByTestId('games-result-count')).toHaveText('Showing 0 games');
+    await expect(page.getByTestId('clear-filters')).toBeVisible();
+  });
+
   test('should navigate to correct game details page when clicking on a game', async ({ page }) => {
     let gameId: string | null;
     let gameTitle: string | null;
