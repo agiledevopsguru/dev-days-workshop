@@ -14,7 +14,7 @@ const gameSelection = {
     publisherName: publishers.name,
 };
 
-type GameSelectionRow = {
+interface GameSelectionRow {
     id: number;
     title: string;
     description: string;
@@ -23,7 +23,7 @@ type GameSelectionRow = {
     categoryName: string | null;
     publisherId: number | null;
     publisherName: string | null;
-};
+}
 
 function mapGame(row: GameSelectionRow): Game {
     return {
@@ -42,7 +42,7 @@ function mapGame(row: GameSelectionRow): Game {
     };
 }
 
-function baseGamesQuery(db: Database) {
+function baseGamesQuery(db: Database): ReturnType<typeof db.select> {
     return db
         .select(gameSelection)
         .from(games)
