@@ -14,7 +14,7 @@ const gameSelection = {
     publisherName: publishers.name,
 };
 
-type GameSelectionRow = {
+interface GameSelectionRow {
     id: number;
     title: string;
     description: string;
@@ -23,7 +23,7 @@ type GameSelectionRow = {
     categoryName: string | null;
     publisherId: number | null;
     publisherName: string | null;
-};
+}
 
 function mapGame(row: GameSelectionRow): Game {
     return {
@@ -42,13 +42,12 @@ function mapGame(row: GameSelectionRow): Game {
     };
 }
 
-function baseGamesQuery(db: Database) {
-    return db
+const baseGamesQuery = (db: Database) =>
+    db
         .select(gameSelection)
         .from(games)
         .leftJoin(categories, eq(games.categoryId, categories.id))
         .leftJoin(publishers, eq(games.publisherId, publishers.id));
-}
 
 /** All games ordered by title. */
 export async function getAllGames(db: Database): Promise<Game[]> {

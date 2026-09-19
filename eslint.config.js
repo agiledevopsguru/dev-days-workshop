@@ -39,5 +39,19 @@ export default [
     languageOptions: {
       parser: tseslint.parser,
     },
+    rules: {
+      "@typescript-eslint/consistent-type-definitions": [
+        "warn",
+        "interface",
+      ],
+      "@typescript-eslint/explicit-function-return-type": [
+        "warn",
+        {
+          allowExpressions: true,
+          allowHigherOrderFunctions: true,
+          allowTypedFunctionExpressions: true,
+        },
+      ],
+    },
   },
 ];
